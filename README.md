@@ -67,7 +67,7 @@ up echo "nameserver 8.8.8.8" > /etc/resolv.conf
 
 ## Soal 2
 Disini kita perlu melakukan konfigurasi agar Router bisa menggunakan internet.
-
+```
 auto eth0
 iface eth0 inet dhcp
 up sysctl -w net.ipv4.ip_forward=1    
@@ -87,7 +87,7 @@ auto eth3
 iface eth3 inet static
 address 10.71.3.1
 netmask 255.255.255.0
-
+```
 ![image](assets/image-1.png)
 
 ## Soal 3
@@ -425,3 +425,105 @@ service nginx stop
 ```
 
 ## Soal 13
+Buka terminal Mika, dan buat pengguna `mika_admin`.
+```
+useradd -m -s /bin/bash mika_admin
+su - mika_admin
+```
+
+Buat pasangan kunci SSH (tekan Enter kosong agar tidak ada password)
+```
+ssh-keygen -t rsa -b 2048 -N "" -f ~/.ssh/id_rsa
+```
+
+Tampilkan dan saling isi kunci publik yang dibuat.
+```
+cat ~/.ssh/id_rsa.pub
+```
+Kemudian, salin seluruh teks yang diawali dengan `ssh-rsa AAAA... mika_admin@Mika`.  
+Contohnya:
+![image](assets/image-25.png)
+
+Selanjutnya, buka terminal Knights lalu pasang dan pastikan OpenSSH server aktif:
+```
+apt update && apt install -y openssh-server
+```
+
+Buat pengguna tujuan di Knights dengan user `mika_admin`.
+```
+useradd -m -s /bin/bash mika_admin
+```
+
+Daftarkan kunci publik SSH yang tadi diperoleh ke dalam `authorized_keys` di terminal Knights.
+```
+mkdir -p /home/mika_admin/.ssh
+nano /home/mika_admin/.ssh/authorized_keys
+```
+
+Jika sudah, atur permissions agar aman dengan:
+```
+chmod 700 /home/mika_admin/.ssh
+chmod 600 /home/mika_admin/.ssh/authorized_keys
+chown -R mika_admin:mika_admin /home/mika_admin/.ssh
+```
+
+Kemudian, atur SSH agar menonaktifkan login password.
+```
+nano /etc/ssh/sshd_config
+```
+
+Cari atau tambahkan line berikut di sana, oh iya pastikan tidak ada tanda `#` nya.
+```
+PubkeyAuthentication yes
+PasswordAuthentication no
+```
+![image](assets/image-26.png)
+
+Lalu, restart service SSH di Knights
+```
+service ssh restart
+```
+
+Nah sekarang, mulai capture di Wireshark dengan klik kanan kabel antara Knights dengan Switch3 di GUI GNS3. Dan saat di Wireshark, terapkan display filter:
+```
+ssh || tcp.port == 22
+```
+
+Selanjutnya, kembali ke terminal Mika (sebagai user `mika_admin`), lakukan koneksi SSH ke Knights (`10.71.3.2`). Saat pertama kali muncul konfirmasi fingerprint, ketik `yes`.
+```
+ssh mika_admin@10.71.3.2
+```
+
+![image](assets/image-27.png)
+![image](assets/image-28.png)
+
+### Identifikasi Paket pada Wireshark.  
+1. Inisiasi TCP (3-Way Handshake):  
+Frame No. 2, 3, 4: Mika (`10.71.1.3`) dan Knights (`10.71.3.2`) membangun koneksi dasar TCP port 22 menggunakan urutan flag `[SYN]`, `[SYN, ACK]`, dan `[ACK]`.
+
+2. Protocol Version Exchange (Pertukaran Versi Protokol):
+- Frame No. 5: `Client: Protocol (SSH-2.0-OpenSSH_10.0p2 Debian-7+deb13u4)`. Di sini Mika mengirimkan string identitas versi SSH yang didukungnya.
+- Frame No. 7: `Server: Protocol (SSH-2.0-OpenSSH_10.0p2 Debian-7+deb13u4)`. Di sini Knights membalas dengan versi yang sama, menyepakati penggunaan protokol SSHv2.
+
+3. Key Exchange (KEX):
+- Frame No. 10: `Client: Key Exchange Init`. Di sini Mika mengirim daftar cipher, algoritma hash, dan metode KEX yang didukungnya.
+- Frame No. 12: `Server: Key Exchange Init`. Di sini Knights memilih kombinasi algoritma yang cocok.
+- Frame No. 13: `Client: PQ/T Hybrid Key Exchange Init`. Di sini Mika mengirim nilai ephemeral public key untuk memulai kalkulasi pembentukan shared key.
+- Frame No. 14: `Server: PQ/T Hybrid Key Exchange Reply, New Keys, Encrypted packet`. Di sini Knights mengirim respons kalkulasi kunci, bukti verifikasi host key, dan sinyal bahwa server mulai mengaktifkan kunci sesi baru.
+- Frame No. 17: `Client: New Keys, Encrypted packet`. Di sini Mika juga mengaktifkan kunci sesi baru. Pada titik ini, seluruh proses negosiasi kunci selesai.
+
+4. Sesi Terenkripsi Penuh (Data & Autentikasi Pengguna):  
+Frame No. 19 s.d. 45: Semua paket setelahnya tercatat sebagai `Encrypted packet`.
+
+### Terkait Kredensial Tidak Terlihat.
+Kredensial tidak terlihat dalam bentuk teks terbuka seperti pada Telnet, karena:  
+1. Autentikasi Terjadi di Dalam Saluran Terenkripsi:  
+Pada protokol Telnet, proses login dilakukan sebelum ada keamanan apa pun. Telnet tidak memiliki fitur kriptografi, sehingga username dan password dikirim sebagai teks ASCII murni (_plaintext_) yang bisa langsung dibaca oleh sniffer.  
+Pada protokol SSH, tahap autentikasi pengguna baru dilakukan setelah paket `New Keys` disepakati (mulai Frame No. 17 ke atas). Artinya, identitas dan proses pembuktian akun sudah dibungkus rapat di dalam symmetric cipher (seperti ChaCha20/Poly1305 atau AES-GCM). Di Wireshark, isinya murni berupa ciphertext acak.
+
+2. Kunci Privat Tidak Pernah Dikirim ke Jaringan (Public Key Authentication):  
+Karena menggunakan autentikasi kunci publik (`ssh-keygen`), node Mika sama sekali tidak pernah mengirimkan private key ataupun kata sandi ke Knights.  
+Yang terjadi adalah, server Knights mengirim sebuah tantangan acak (challenge), lalu Mika menandatangani tantangan tersebut menggunakan private key miliknya secara lokal di komputernya. Server Knights kemudian cukup memverifikasi tanda tangan tersebut menggunakan public key yang terdaftar di `~/.ssh/authorized_keys`.
+
+3. Penyusup Hanya Melihat Ciphertext:  
+Siapa pun (termasuk Wireshark) yang menangkap paket dari kabel tidak memiliki _shared session key_ hasil perhitungan algoritma Diffie-Hellman/Post-Quantum Hybrid tersebut, sehingga pesan tidak dapat didekripsi.
