@@ -331,3 +331,31 @@ Disini diminta untuk menguji latensi dan stabilitas jaringan antara node Knights
 ![image](assets/image-18.png)
 
 berdasarkan data pcap, `Echo Request` (Type 8 Code 0) dan `Echo Reply` (Type 0 Code 0). `Packet Loss` 0% yang artinya seluruh request direspon secara lengkap. Untuk mendapatkan ringkasan RTT bisa dilihat pada bagian paling bawah terminal.
+
+## Soal 11
+Tugas pada soal kali ini adalah membuktikan bahwa protokol Telnet tidak aman karena mengirimkan data (termasuk username dan password) secara mentah tanpa enkripsi (plain text), serta memahami bagaimana mekanisme transmisi karakter pada sesi Telnet bekerja.
+
+Langkah pertama pengerjaan soal ini adalah membuat kredensial di server `Chisa`, buka terminal di node `Chisa` lalu jalankan command untuk menginstall busybox-extras dan membuat akun.
+```
+apt update && apt install -y busybox-extras
+useradd -m -s /bin/bash phantom_user
+echo "phantom_user:wired_ghost" | chpasswd
+busybox-extras telnetd -p 23 -l /bin/login &
+```
+Jika busybox tidak tersedia, solusinya bisa gunakan `socat`.
+```
+apt update && apt install -y socat
+useradd -m -s /bin/bash phantom_user 2>/dev/null || true
+echo "phantom_user:wired_ghost" | chpasswd
+socat TCP-LISTEN:23,reuseaddr,fork EXEC:"/bin/login",pty,stderr,setsid,sigint,sane &
+```
+cek port 23 di `Chisa` dengan `netstat -tuln | grep 23`. Setelah itu coba login dari node `Eiri` dengan `telnet 10.71.2.2` dengan username `phantom_user` dan password `wired_ghost`. Oh iya jangan lupa capture dengan wireshark dulu ya baru lakukan langkah tadi.
+
+![image](assets/image-19.png)
+
+![image](assets/image-20.png)
+
+![image](assets/image-21.png)
+
+Setiap karakter yang diketik dalam sesi Telnet terkirim dalam paket TCP terpisah karena Telnet beroperasi secara default menggunakan mode `Character-at-a-Time` yang dipadukan dengan mekanisme `Remote Echo`. Dalam mode ini, aplikasi `client` tidak menunggu tombol Enter ditekan untuk mengirimkan data, melainkan langsung membungkus setiap penekanan satu tombol keyboard ke dalam satu segmen TCP dan meneruskannya ke server. Server kemudian memproses karakter tersebut dan mengirimkan balasannya kembali (echo back) ke `client` agar hurufnya baru bisa muncul di layar terminal pengguna. Pendekatan desain interaktif ini awalnya diciptakan untuk mendukung aplikasi terminal berbasis teks seperti editor nano, fitur auto-complete tombol Tab, atau navigasi panah yang membutuhkan respons real-time tanpa jeda baris baru. Akibatnya, pengetikan teks sederhana seperti username atau password akan menghasilkan belasan hingga puluhan paket TCP terpisah, di mana masing-masing paket membawa beban overhead header TCP/IP yang jauh lebih besar dibandingkan payload datanya yang hanya berukuran 1 byte.
+
