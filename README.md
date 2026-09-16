@@ -359,3 +359,69 @@ cek port 23 di `Chisa` dengan `netstat -tuln | grep 23`. Setelah itu coba login 
 
 Setiap karakter yang diketik dalam sesi Telnet terkirim dalam paket TCP terpisah karena Telnet beroperasi secara default menggunakan mode `Character-at-a-Time` yang dipadukan dengan mekanisme `Remote Echo`. Dalam mode ini, aplikasi `client` tidak menunggu tombol Enter ditekan untuk mengirimkan data, melainkan langsung membungkus setiap penekanan satu tombol keyboard ke dalam satu segmen TCP dan meneruskannya ke server. Server kemudian memproses karakter tersebut dan mengirimkan balasannya kembali (echo back) ke `client` agar hurufnya baru bisa muncul di layar terminal pengguna. Pendekatan desain interaktif ini awalnya diciptakan untuk mendukung aplikasi terminal berbasis teks seperti editor nano, fitur auto-complete tombol Tab, atau navigasi panah yang membutuhkan respons real-time tanpa jeda baris baru. Akibatnya, pengetikan teks sederhana seperti username atau password akan menghasilkan belasan hingga puluhan paket TCP terpisah, di mana masing-masing paket membawa beban overhead header TCP/IP yang jauh lebih besar dibandingkan payload datanya yang hanya berukuran 1 byte.
 
+## Soal 12
+
+Pertama, buka terminal Knights dan pasang paket OpenSSH dan Nginx/Web Server. Lalu nyalakan layanannya.
+```
+apt update && apt install -y openssh-server nginx net-tools
+
+service ssh start
+service nginx start
+```
+
+Verifikasi port 22 dan port 80 sudah listening atau belum.
+```
+netstat -tuln
+```
+![image](assets/image-22.png)
+
+Sekarang, kita buka terminal Alice untuk menyiapkan alat scanner.
+```
+apt update && apt install -y netcat-openbsd
+```
+
+Selanjutnya kita jalankan Wireshark Packet Capture. Sebelum melakukan scan, aktifkan penangkapan paket agar transisi flag terekam. Di GNS3, klik kanan pada link kabel antara Alice (eth0) dan Switch 1.
+
+Pada bilah hijau di atas (display filter), masukkan filter berikut lalu tekan Enter:
+```
+tcp.port == 22 || tcp.port == 80 || tcp.port == 7777
+```
+
+Sekarang, kembali ke terminal Alice dan eksekusi scan menuju Knights.  
+Scan Port 22
+```
+nc -z -v -w 2 10.71.3.2 22
+```
+Scan Port 80
+```
+nc -z -v -w 2 10.71.3.2 80
+```
+Scan Port 7777
+```
+nc -z -v -w 2 10.71.3.2 7777
+```
+![image](assets/image-23.png)
+
+![image](assets/image-24.png)
+
+Pada port terbuka, yakni Port 22(SSH) & Port 80(HTTP).  
+1. Port 22
+- Frame No. 1: Alice (`10.71.1.2`) mengirim paket probe dengan flag `[SYN]` ke Knights (`10.71.3.2:22`).
+- Frame No. 2: Knights merespons dengan flag `[SYN, ACK] (Seq=0 Ack=1)`. Ini menandakan layanan SSH aktif mendengarkan (listening) dan menyambut pembentukan koneksi 3-way handshake.
+- Frame No. 3: Alice mengirimkan balasan `[ACK]` untuk menyelesaikan handshake, membuktikan status port terbuka / succeeded.
+
+2. Port 80
+- Frame No. 12: Alice mengirimkan paket request dengan flag `[SYN]` ke Knights (`10.71.3.2:80`).
+- Frame No. 13: Knights merespons dengan flag `[SYN, ACK] (Seq=0 Ack=1)`, membuktikan web server (Nginx/HTTP) aktif dan port 80 berstatus terbuka / succeeded.
+
+3. Port 7777
+- Frame No. 22: Alice mengirimkan paket probe dengan flag `[SYN]` ke Knights (`10.71.3.2:7777`).
+- Frame No. 23: Knights langsung menolak dengan mengembalikan paket berflag `[RST, ACK] (Seq=1 Ack=1 Win=0)`, sehingga port tersebut sedang tidak aktif listening.
+
+Jika ingin mematikan service di terminal Knights, gunakan:
+```
+service ssh stop
+service nginx stop
+```
+
+## Soal 13
