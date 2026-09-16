@@ -284,3 +284,50 @@ Response: 229 Entering Extended Passive Mode (|||26247|)
 Port Data TCP yang dinegosiasikan adalah `26247`. Hal ini terbukti langsung pada paket No. 35, 36, 37, dan 40 (FTP-DATA), di mana koneksi transfer data dibuka menggunakan port tujuan `26247` (`53946` → `26247`).
 
 ## Soal 9
+Jalankan service vsftpd di terminal Chisa dengan `service vsftpd start` dan pastikan statusnya running `service vsftpd status`. Buat folder penyimpanan utama `mkdir -p /var/wired/data`, buat user alice, mika, dan eiri
+```
+useradd -m -d /var/wired/data alice
+useradd -m -d /var/wired/data mika
+useradd -m -d /var/wired/data eiri
+```
+lalu atur permission direktori
+```
+chown root:root /var/wired/data
+chmod 777 /var/wired/data
+```
+buat file userlist blacklist untuk eiri
+```
+echo "eiri" > /etc/vsftpd.userlist
+chmod 644 /etc/vsftpd.userlist
+```
+tambahkan konfigurasi ke paling bawah /etc/vsftpd.conf
+```
+cat <<EOT >> /etc/vsftpd.conf
+listen=YES
+listen_ipv6=NO
+anonymous_enable=NO
+local_enable=YES
+write_enable=YES
+userlist_enable=YES
+userlist_file=/etc/vsftpd.userlist
+userlist_deny=YES
+user_config_dir=/etc/vsftpd_user_conf
+EOT
+```
+set aturan Read-Only khusus user Mika
+```
+mkdir -p /etc/vsftpd_user_conf
+echo "write_enable=NO" > /etc/vsftpd_user_conf/mika
+```
+restart service vsftpd dengan `service vsftpd restart`, lalu masuk ke terminal Mika jalankan `ftp 10.71.2.2`. Input username `mika` dan password `123`, setelah login sukses maka jalankan `put file_baru_mika.txt`, Server akan memberikan respon 550 Permission denied, yang membuktikan pembatasan read-only untuk Mika berhasil 100%.
+
+![image](assets/image-16.png)
+
+## Soal 10
+Disini diminta untuk menguji latensi dan stabilitas jaringan antara node Knights dan FTP Server Chisa menggunakan perintah ping khusus, lalu menganalisis hasilnya di terminal dan Wireshark. Langkah pertamanya start capture pada node `Knights`, lalu kirimkan paket ping dari node Knights ke node Chisa dengan payload khusus 128 bytes dan interval 0.3 detik sebanyak 77 paket `ping -c 77 -s 128 -i 0.3 10.71.2.2`.
+
+![image](assets/image-17.png)
+
+![image](assets/image-18.png)
+
+berdasarkan data pcap, `Echo Request` (Type 8 Code 0) dan `Echo Reply` (Type 0 Code 0). `Packet Loss` 0% yang artinya seluruh request direspon secara lengkap. Untuk mendapatkan ringkasan RTT bisa dilihat pada bagian paling bawah terminal.
