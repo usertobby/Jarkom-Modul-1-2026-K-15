@@ -527,3 +527,106 @@ Yang terjadi adalah, server Knights mengirim sebuah tantangan acak (challenge), 
 
 3. Penyusup Hanya Melihat Ciphertext:  
 Siapa pun (termasuk Wireshark) yang menangkap paket dari kabel tidak memiliki _shared session key_ hasil perhitungan algoritma Diffie-Hellman/Post-Quantum Hybrid tersebut, sehingga pesan tidak dapat didekripsi.
+
+## Soal 14
+Soal kali ini kita diminta untuk menganalisis file yang diberikan menggunakan `wireshark` untuk menemukan informasi serangan `brute-force` lalu memasukkan jawabannya ke server kuis atau socket lewat `netcat`.
+
+### Download File
+Langkah awal pengerjaan soal ini adalah mendownload dulu file `wired_bruteforce.pcapng` yang diberikan pada soal. Setelah selesai download, buka filenya lewat `wireshark`.
+
+### Cari Informasi Penting
+Langkah kedua disini kita mencari informasi penting yang ada di file yang kita download tadi.
+
+1. IP Penyerang, Target IP, dan Target Port
+
+![image](assets/image-29.png)
+
+Ketik `http.request.method == "POST"` pada kolom filter. Lihat pada kolom `source`, itu adalah IP Penyerang, kolom `destination` adalah Target IP, dan lihat pada bagian Transmission Control Protocol disitu terdapat Target Port.
+
+2. Password Berhasil Ditembus
+
+![image](assets/image-30.png)
+
+Ketik `http.response.code == 200 || http.response.code == 302` pada kolom filter. Klik kanan pada paket respon sukses yang muncul, lalu klik follow, klik `HTTP Stream`, setelah itu akan muncul jendela teks lalu scroll ke bagian request POST (teks merah). Cari baris yang berisi username=lain_admin untuk melihat nilai password yang dikirimkan.
+
+3. Web Server Software dan Version
+
+Di jendela yang `HTTP Stream` yang sama lihat bagian respon server (teks biru), cari header server (Apache/2.4.62).
+
+4. Validasi ke Socket Server
+
+Jalankan
+```
+nc [IP_Group] 3401
+```
+Disini kita akan gunakan `nc 192.168.122.1 3041`, disini saya memakai `IP Gateway NAT1`
+
+![image](assets/image-31.png)
+
+## Soal 15
+Di soal kali ini kita diminta menganalisis aktivitas USB dan memvalidasi hasilnya ke socket server di port 3401.
+
+### Download File
+Download file yang sudah diberikan lalu buka dengan `wireshark`.
+
+### Mencari Vendor ID, Product ID, dan Device Address
+Ketik di kolom filter `usb.idVendor || usb.idProduct`. Klik paketnya lalu ekspansi detail paketnya (USB URB dan Device Descriptor).
+
+![image](assets/image-32.png)
+
+### Ekstrak dan Transkrip Keystroke
+Ketik di kolom filter `usb.capdata || usbhid.data`.
+
+![image](assets/image-33.png)
+
+agar kita tidak perlu membaca ratusan baris hex secara manual, kita bisa mengekspor nilai hex tersebut. Klik menu File di pojok kiri atas $\rightarrow$ Export Packet Dissections $\rightarrow$ As Plain Text atau jika mau pakai terminal bisa jalankan
+```
+tshark -r soal15_wired_usb_hid.pcap -Y "usb.capdata" -T fields -e usb.capdata > hex.txt
+```
+setelah itu ubah kumpulan data hex tersebut menjadi teks karakter keyboard dengan script Python USB HID Keycode Decoder untuk membaca pesan rahasianya.
+
+### Validasi Pada Socket Server
+Disini saya memakai `nc 192.168.122.1 3402`.
+
+![image](assets/image-34.png)
+
+## Soal 16
+Soal kali ini kita diminta untuk menganalisis lalu lintas FTP untuk menemukan 4 informasi utama lalu memvalidasinya ke socket server di port 3403.
+
+### Download FIle
+Download file yang sudah diberikan setelah itu buka di `wireshark`.
+
+### Filter dan Follow TCP Streams
+Ketik di kolom filter `ftp`, klik kanan pada paket mana saja yang muncul, klik follow lalu TCP Stream. Akan muncul jendela pop-up baru berisi teks percakapan FTP warna Merah (perintah client/penyerang) dan Biru (balasan server).
+
+![image](assets/image-35.png)
+
+ketik `ftp.request.command == "RETR"`. Klik kanan pada paket hasil filter yang mengunduh `knights_payload.exe`. Klik follow lalu TCP Stream. Di jendela Stream yang baru itu, kamu akan melihat banner, username, password, dan ukuran byte file malware-nya.
+
+![image](assets/image-36.png)
+
+### Validasi ke Socket Server
+Buka terminal router dan konek ke socket server port 3403, validasi seperti tadi `nc 192.168.122.1 3403`.
+
+![image](assets/image-37.png)
+
+## Soal 17
+Soal kali ini diminta menganalisis file untuk menemukan 4 informasi utama lalu memvalidasinya ke socket server di port 3404.
+
+### Download File
+Download filenya lalu buka di `wireshark`.
+
+### Filter
+Di kolom filter ketik `http.request || http.response`.
+
+![image](assets/image-38.png)
+
+### Cari Request Unduhan File Executable
+Cari paket dengan metode GET yang meminta file dengan ekstensi .exe. Klik kanan paket tersebut $\rightarrow$ Follow $\rightarrow$ HTTP Stream.
+
+![image](assets/image-39.png)
+
+### Validasi
+Buka terminal router dan konek ke socket server port 3404, jalankan `nc 192.168.122.1 3404`.
+
+![image](assets/image-40.png)
