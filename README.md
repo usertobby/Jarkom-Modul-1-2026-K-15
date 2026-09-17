@@ -593,7 +593,7 @@ Disini saya memakai `nc 192.168.122.1 3402`.
 ## Soal 16
 Soal kali ini kita diminta untuk menganalisis lalu lintas FTP untuk menemukan 4 informasi utama lalu memvalidasinya ke socket server di port 3403.
 
-### Download FIle
+### Download File
 Download file yang sudah diberikan setelah itu buka di `wireshark`.
 
 ### Filter dan Follow TCP Streams
@@ -630,3 +630,94 @@ Cari paket dengan metode GET yang meminta file dengan ekstensi .exe. Klik kanan 
 Buka terminal router dan konek ke socket server port 3404, jalankan `nc 192.168.122.1 3404`.
 
 ![image](assets/image-40.png)
+
+## Soal 18
+Pada soal ini kita diminta untuk melacak aktivitas transfer malware yang dilakukan melalui protokol SMB.
+
+### Download File
+Download filenya lalu buka di `Wireshark`.
+
+### Protokol Jaringan yang di Eksploitasi
+Untuk mencarinya, terapkan filter berikut pada display filter:
+```
+smb
+```
+![image](assets/image-41.png)
+
+### IP Pengirim & IP Penerima
+![image](assets/image-42.png)
+- IP Pengirim  
+Berdasarkan gambar, terlihat bahwa IP Pengirim (Eiri) adalah `10.7.3.100`.
+- IP Penerima  
+Berdasarkan gambar, terlihat bahwa IP Penerima adalah `10.7.1.50`.
+
+### Folder Tujuan
+![image](assets/image-43.png)
+Terlihat bahwa folder tujuan penyimpanannya adalah `System32`. Path tree lengkapnya adalah `\\10.7.1.50\ADMIN$`.
+
+### Nama File Malware
+Nama file malware yang saya temukan adalah pada direktori `System32` dengan nama `wired_trojan_payload.exe`.
+
+### Validasi ke Socket Server
+Buka terminal router dan connect ke socket server port 3405, jalankan `nc 192.168.122.1 3405`.
+![image](assets/image-44.png)
+
+## Soal 19
+Pada soal ini kita diminta untuk identifikasi alamat email korban yang ditargetkan, password korban yang diklaim bocor oleh penyerang, jenis malware yang diinfeksikan, batas waktu (dalam hari) yang diberikan, serta MailClientID yang tercantum pada pesan.
+
+Langkah pertama adalah menerapkan `smtp` pada display filter.
+![image](assets/image-45.png)
+
+Di sini, kita cari baris komunikasi pada SMTP tersebut yang berisikan perintah `DATA`. Setelah itu, klik kanan pada protokol SMTP `DATA` tersebut dan pilih Follow > TCP Stream.
+
+Pada baris ke 84, yang berisikan perintah `DATA`, isinya adalah:
+![image](assets/image-46.png)
+
+Di sini terindentifikasi bahwa:
+1. Alamat Email Korban: `victim@protocol7.co.jp`
+2. Password Korban: `pr0tocol_7_user`
+3. Jenis Malware: `ransomware`
+4. Batas Waktu (dalam hari): `3`
+5. MailClientID: `7719980706`
+
+### Validasi ke Socket Server
+Buka terminal router dan connect ke socket server port 3406, jalankan `nc 192.168.122.1 3406`.
+![image](assets/image-47.png)
+
+## Soal 20
+Pada soal terakhir ini, kita diminta untuk menganalisis file capture `wired_tls_decrypt.pcapng` bersama `keyslogfile.txt` untuk mengidentifikasi versi protokol TLS yang dinegosiasikan, nama domain (SNI) yang diakses, alamat IP server HTTPS penyerang, User-Agent yang digunakan, serta HTTP request method dan path yang tersembunyi di dalam sesi dekripsi.
+
+Pertama buka file `wired_tls_decrypt.pcapng` dengan Wireshark.  
+![image](assets/image-48.png)
+
+Selanjutnya, buka Edit > Preferences, lalu buka dropdown Protocols, scroll sampai ketemu dan klik TLS, pada bagian (Pre)-Master-Secret log filename klik Browse dan pilih file `keyslogfile.txt`.  
+![image](assets/image-49.png)
+![image](assets/image-50.png)
+
+### Versi Protokol TLS & SNI & Alamat IP Server HTTPS Penyerang
+Sekarang kita akan mencari parameter yang diminta soal.  
+Ketik filter `tls.handshake.type == 1` pada display filter (Client Hello).  
+![image](assets/image-51.png)
+
+Ketik filter `tls.handshake.type == 2` pada display filter (Server Hello).  
+![image](assets/image-52.png)
+
+Berdasarkan gambar, terlihat bahwa:  
+- Versi Protokol TLS: `TLSv1.2`
+- Nama Domain (SNI): `example.com`
+- IP Server HTTPS Penyerang: `93.184.216.34`
+
+IP `10.9.0.2` adalah alamat mesin korban yang terinfeksi dan sedang mengeksekusi malware (bertindak sebagai klien HTTP), sedangkan 93.184.216.34 adalah server web/HTTPS.
+
+### User Agent & HTTP Request Method & Path
+Ketik filter menjadi `http` pada display filter.
+![image](assets/image-53.png)
+
+Berdasarkan gambar, terlihat bahwa:
+- User-Agent: `curl/7.62.0`
+- HTTP request method: `HEAD`
+- HTTP request path: `/`
+
+### Validasi ke Socket Server
+Buka terminal router dan connect ke socket server port 3407, jalankan `nc 192.168.122.1 3407`.  
+![image](assets/image-54.png)
