@@ -214,7 +214,7 @@ Kita coba buat terminal Mika dengan:
 ```
 echo "halo" > test_mika.txt
 ftp -n 10.71.2.2 <<EOF
-user alice password
+user mika password
 put test_mika.txt
 ls
 quit
@@ -238,6 +238,11 @@ Download file yang dibutuhkan:
 apt update && apt install -y wget
 
 wget --no-check-certificate 'https://docs.google.com/uc?export=download&id=1lFepK4wFmx55PnRki3NsHW-ivudSR0vg' -O knights_report.zip
+```
+
+Install ftp juga tidak lupa:
+```
+apt update && apt install ftp -y
 ```
 
 Unzip file nya:
