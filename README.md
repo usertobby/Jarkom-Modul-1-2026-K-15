@@ -185,7 +185,13 @@ echo "write_enable=NO" > /etc/vsftpd_user_conf/mika
 echo "write_enable=YES" > /etc/vsftpd_user_conf/alice
 ```
 
-Sekaran kita uji, pada terminal Alice, Mika, dan Eiri jangan lupa install ftp.
+Jika sudah, jangan lupa buat vsftpd nya di:
+```
+service vsftpd restart
+service vsftpd status
+```
+
+Sekarang kita uji, pada terminal Alice, Mika, dan Eiri jangan lupa install ftp.
 ```
 apt update && apt install ftp -y
 ```
